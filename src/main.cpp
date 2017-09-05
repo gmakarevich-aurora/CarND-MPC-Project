@@ -65,6 +65,22 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
+Eigen::VectorXd derivative(Eigen::VectorXd coeffs) {
+    Eigen::VectorXd result(coeffs.size() - 1);
+    for (size_t i = 1; i < coeffs.size(); ++i) {
+        result[i - 1] = i * coeffs[i];
+    }
+    return result;
+}
+
+void from_track_to_car_coordinates(
+        double dx, double dy, double psi,
+        double x_track, double y_track,
+        double* x_car, double* y_car) {
+    *x_car = (x_track - dx) * cos(psi) - (y_track - dy) * sin(psi);
+    *y_car = (x_track - dx) * sin(psi) + (y_track - dy) * cos(psi);
+}
+
 int main() {
   uWS::Hub h;
 
@@ -98,13 +114,30 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+          Eigen::Map<Eigen::VectorXd> eigen_ptsx(&ptsx[0], ptsx.size());
+          Eigen::Map<Eigen::VectorXd> eigen_ptsy(&ptsy[0], ptsy.size());
+
+          // Build the coeffs using given points.
+          Eigen::VectorXd coeffs = polyfit(eigen_ptsx, eigen_ptsy, 3);
+          // Calculate the current cte.
+          double ft = polyeval(coeffs, px);
+          double cte = ft - py;
+
+          // Calculate the current epsi.
+          Eigen::VectorXd derivative_coeffs = derivative(coeffs);
+          double epsi = psi - atan(polyeval(derivative_coeffs, px));
+
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+          auto vars = mpc.Solve(state, coeffs);
+
+          double steer_value = vars[0];
+          double throttle_value = vars[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value;
+          msgJson["steering_angle"] = steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
