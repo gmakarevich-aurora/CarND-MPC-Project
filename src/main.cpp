@@ -129,7 +129,7 @@ int main() {
 
           Eigen::VectorXd state(6);
           state << px, py, psi, v, cte, epsi;
-          auto vars = mpc.Solve(state, coeffs);
+          vector<double> vars = mpc.Solve(state, coeffs);
 
           double steer_value = vars[0];
           double throttle_value = vars[1];
@@ -144,8 +144,22 @@ int main() {
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
 
+          mpc_x_vals.reserve(ptsx.size());
+          mpc_y_vals.reserve(ptsx.size());
+
+          for (size_t i = 2; i < vars.size() - 2; i = i + 2) {
+            double x_car;
+            double y_car;
+            from_track_to_car_coordinates(px, py, psi,
+                                          vars[i], vars[i + 1],
+                                          &x_car, &y_car);
+            mpc_x_vals.push_back(x_car);
+            mpc_y_vals.push_back(y_car);
+          }
+
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
+
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
@@ -156,6 +170,19 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+
+          next_x_vals.reserve(ptsx.size());
+          next_y_vals.reserve(ptsx.size());
+
+          for(size_t i = 0; i < ptsx.size(); ++i) {
+            double x_car;
+            double y_car;
+            from_track_to_car_coordinates(px, py, psi,
+                                          ptsx[i], ptsy[i],
+                                          &x_car, &y_car);
+            next_x_vals.push_back(x_car);
+            next_y_vals.push_back(y_car);
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
