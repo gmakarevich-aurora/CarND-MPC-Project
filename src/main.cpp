@@ -67,7 +67,7 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
 
 Eigen::VectorXd derivative(Eigen::VectorXd coeffs) {
     Eigen::VectorXd result(coeffs.size() - 1);
-    for (size_t i = 1; i < coeffs.size(); ++i) {
+    for (int i = 1; i < coeffs.size(); ++i) {
         result[i - 1] = i * coeffs[i];
     }
     return result;
@@ -77,8 +77,8 @@ void from_track_to_car_coordinates(
         double dx, double dy, double psi,
         double x_track, double y_track,
         double* x_car, double* y_car) {
-    *x_car = (x_track - dx) * cos(psi) - (y_track - dy) * sin(psi);
-    *y_car = (x_track - dx) * sin(psi) + (y_track - dy) * cos(psi);
+    *x_car = (x_track - dx) * cos(-psi) - (y_track - dy) * sin(-psi);
+    *y_car = (x_track - dx) * sin(-psi) + (y_track - dy) * cos(-psi);
 }
 
 int main() {
@@ -137,7 +137,7 @@ int main() {
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = steer_value / (deg2rad(25));
+          msgJson["steering_angle"] = -1 *steer_value / (deg2rad(25));
           msgJson["throttle"] = throttle_value;
 
           //Display the MPC predicted trajectory 
