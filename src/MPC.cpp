@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-constexpr size_t N = 15;
-constexpr double dt = 0.12;
+constexpr size_t N = 12;
+constexpr double dt = 0.1;
 
 constexpr size_t x_start = 0;
 constexpr size_t y_start = x_start + N;
@@ -106,6 +106,16 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> a0 = vars[a_start + t - 1];
 
+      // To imitate the latency we introduce the first step with
+      // the duration of latency and steer_value and throttle_value
+      // equal to 0.
+      double c_dt = dt;
+      if (t == 1) {
+          c_dt = 0.1;
+          a0 = 0;
+          delta0 = 0;
+      }
+
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 +
                       coeffs[2] * CppAD::pow(x0, 2) +
                       coeffs[3] * CppAD::pow(x0, 3);
@@ -123,14 +133,14 @@ class FG_eval {
       // v_[t+1] = v[t] + a[t] * dt
       // cte[t+1] = f(x[t]) - y[t] + v[t] * sin(epsi[t]) * dt
       // epsi[t+1] = psi[t] - psides[t] + v[t] * delta[t] / Lf * dt
-      fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
-      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
-      fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * dt);
-      fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
+      fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * c_dt);
+      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * c_dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 + v0 * delta0 / Lf * c_dt);
+      fg[1 + v_start + t] = v1 - (v0 + a0 * c_dt);
       fg[1 + cte_start + t] =
-          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * c_dt));
       fg[1 + epsi_start + t] =
-          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * c_dt);
     }
   }
 };
@@ -269,8 +279,8 @@ vector<double> MPC::Solve(Eigen::VectorXd x0, Eigen::VectorXd coeffs) {
   // save predicted actuations
   vector<double> result;
   result.reserve(N * 2 + 2);
-  result.push_back(solution.x[delta_start]);
-  result.push_back(solution.x[a_start]);
+  result.push_back(solution.x[delta_start + 1]);
+  result.push_back(solution.x[a_start + 1]);
 
   // Return predicted trajectory.
   for (int i = 0; i < N; i++) {

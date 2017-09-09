@@ -122,11 +122,8 @@ int main() {
           // fit polynomial to waypoints
           Eigen::VectorXd coeffs = polyfit(eigen_ptsx, eigen_ptsy, 3);
 
-          // px = 0;
-          // py = 0;
-          px = 0 + v * 1.0/60 * 1.0/60 * 100.0/1000 * cos(psi);
-          py = 0 + v * 1.0/60 * 1.0/60 * 100.0/1000 * sin(psi);
-
+          px = 0;
+          py = 0;
           psi = 0;
 
           // calculate errors
