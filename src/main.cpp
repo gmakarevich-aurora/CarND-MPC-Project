@@ -65,20 +65,12 @@ Eigen::VectorXd polyfit(Eigen::VectorXd xvals, Eigen::VectorXd yvals,
   return result;
 }
 
-Eigen::VectorXd derivative(Eigen::VectorXd coeffs) {
-    Eigen::VectorXd result(coeffs.size() - 1);
-    for (int i = 1; i < coeffs.size(); ++i) {
-        result[i - 1] = i * coeffs[i];
-    }
-    return result;
-}
-
 void from_track_to_car_coordinates(
         double dx, double dy, double psi,
         double x_track, double y_track,
         double* x_car, double* y_car) {
-    *x_car = (x_track - dx) * cos(-psi) - (y_track - dy) * sin(-psi);
-    *y_car = (x_track - dx) * sin(-psi) + (y_track - dy) * cos(-psi);
+    *x_car = (x_track - dx) * cos(psi) + (y_track - dy) * sin(psi);
+    *y_car = (y_track - dy) * cos(psi) - (x_track - dx) * sin(psi);
 }
 
 int main() {
@@ -109,58 +101,63 @@ int main() {
           double v = j[1]["speed"];
 
           /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          Eigen::Map<Eigen::VectorXd> eigen_ptsx(&ptsx[0], ptsx.size());
-          Eigen::Map<Eigen::VectorXd> eigen_ptsy(&ptsy[0], ptsy.size());
+           * TODO: Calculate steering angle and throttle using MPC.
+           *
+           * Both are in between [-1, 1].
+           *
+           */
 
-          // Build the coeffs using given points.
+          Eigen::VectorXd eigen_ptsx(ptsx.size());
+          Eigen::VectorXd eigen_ptsy(ptsy.size());
+
+          for (int i = 0; i < ptsx.size(); ++i) {
+              double x_car; double y_car;
+              from_track_to_car_coordinates(
+                      px, py, psi, ptsx[i], ptsy[i],
+                      &x_car, &y_car);
+              eigen_ptsx[i] = x_car;
+              eigen_ptsy[i] = y_car;
+          }
+
+          // fit polynomial to waypoints
           Eigen::VectorXd coeffs = polyfit(eigen_ptsx, eigen_ptsy, 3);
-          // Calculate the current cte.
-          double ft = polyeval(coeffs, px);
-          double cte = ft - py;
 
-          // Calculate the current epsi.
-          Eigen::VectorXd derivative_coeffs = derivative(coeffs);
-          double epsi = psi - atan(polyeval(derivative_coeffs, px));
+          // px = 0;
+          // py = 0;
+          px = 0 + v * 1.0/60 * 1.0/60 * 100.0/1000 * cos(psi);
+          py = 0 + v * 1.0/60 * 1.0/60 * 100.0/1000 * sin(psi);
 
-          Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
-          vector<double> vars = mpc.Solve(state, coeffs);
+          psi = 0;
 
-          double steer_value = vars[0];
-          double throttle_value = vars[1];
+          // calculate errors
+          double cte = polyeval(coeffs, px) - py;
+          double epsi = atan(
+                  coeffs[1] + 2 * coeffs[2] * px + 3 * coeffs[3] * pow(px, 2));
 
-          json msgJson;
-          // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
-          // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
-          msgJson["steering_angle"] = -1 *steer_value / (deg2rad(25));
-          msgJson["throttle"] = throttle_value;
+          Eigen::VectorXd state_vec(6);
+          state_vec << px, py, psi, v, cte, epsi;
 
-          //Display the MPC predicted trajectory 
+          vector<double> mpc_out = mpc.Solve(state_vec, coeffs);
+
+          double steer_value = -mpc_out[0];
+          double throttle_value = mpc_out[1];
+
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
-
-          mpc_x_vals.reserve(ptsx.size());
-          mpc_y_vals.reserve(ptsx.size());
-
-          for (size_t i = 2; i < vars.size() - 2; i = i + 2) {
-            double x_car;
-            double y_car;
-            from_track_to_car_coordinates(px, py, psi,
-                                          vars[i], vars[i + 1],
-                                          &x_car, &y_car);
-            mpc_x_vals.push_back(x_car);
-            mpc_y_vals.push_back(y_car);
-          }
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
 
+          for (int i = 2 + 2 * 1; i < mpc_out.size(); i = i + 2) {
+            mpc_x_vals.push_back(mpc_out[i]);
+            mpc_y_vals.push_back(mpc_out[i + 1]);
+          }
 
+          json msgJson;
+          msgJson["steering_angle"] = steer_value;
+          msgJson["throttle"] = throttle_value;
+
+          // display MPC predicted waypoints (green line)
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
@@ -170,23 +167,13 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-
-          next_x_vals.reserve(ptsx.size());
-          next_y_vals.reserve(ptsx.size());
-
-          for(size_t i = 0; i < ptsx.size(); ++i) {
-            double x_car;
-            double y_car;
-            from_track_to_car_coordinates(px, py, psi,
-                                          ptsx[i], ptsy[i],
-                                          &x_car, &y_car);
-            next_x_vals.push_back(x_car);
-            next_y_vals.push_back(y_car);
+          for (int i = 1; i < eigen_ptsx.size(); i++) {
+            next_x_vals.push_back(eigen_ptsx[i]);
+            next_y_vals.push_back(eigen_ptsy[i]);
           }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
-
 
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
