@@ -47,8 +47,7 @@ Then coordinates are fitted using polynom of 3 degree.
 
 ## Model Predictive Control with Latency
 
-As my initial attempt to deal with latency, I shifted the initial state of the system (x,y coordinates)
-to the point where the car would be if no controlled adjustment is done for the duration of the latency. After
-being pointed out in the review, that I miss some of the required state update, I have realized, that it will be
-easier to implement the latency by introducing the first step inside the optimization process with the duration
-of time equal to latency and the throttle and steering values equal to 0.
+I have proceeded wit hthe approach indicated by the reviwer as one of the suggestions:
+"to simulate latency at every timestep, instead of taking delta0 and a0 from last timestep,
+ you take the values from another timestep before, with the disadvantage that used dt value should be the same as latency."
+ I have proceeded with this approach, and it worked.

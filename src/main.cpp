@@ -69,8 +69,8 @@ void from_track_to_car_coordinates(
         double dx, double dy, double psi,
         double x_track, double y_track,
         double* x_car, double* y_car) {
-    *x_car = (x_track - dx) * cos(psi) + (y_track - dy) * sin(psi);
-    *y_car = (y_track - dy) * cos(psi) - (x_track - dx) * sin(psi);
+    *x_car = (x_track - dx) * cos(-psi) - (y_track - dy) * sin(-psi);
+    *y_car = (x_track - dx) * sin(-psi) + (y_track - dy) * cos(-psi);
 }
 
 int main() {
@@ -128,15 +128,14 @@ int main() {
 
           // calculate errors
           double cte = polyeval(coeffs, px) - py;
-          double epsi = atan(
-                  coeffs[1] + 2 * coeffs[2] * px + 3 * coeffs[3] * pow(px, 2));
+          double epsi = -atan(coeffs[1]);
 
           Eigen::VectorXd state_vec(6);
           state_vec << px, py, psi, v, cte, epsi;
 
           vector<double> mpc_out = mpc.Solve(state_vec, coeffs);
 
-          double steer_value = -mpc_out[0];
+          double steer_value = mpc_out[0]/deg2rad(25);
           double throttle_value = mpc_out[1];
 
           vector<double> mpc_x_vals;
